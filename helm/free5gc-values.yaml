@@ -1,0 +1,11 @@
+global:
+  n2network:
+    masterIf: eth0
+  n3network:
+    masterIf: eth0
+  n4network:
+    masterIf: eth0
+  n6network:
+    masterIf: eth0   # override default eth1 — single interface in minikube Docker node
+  n9network:
+    masterIf: eth0

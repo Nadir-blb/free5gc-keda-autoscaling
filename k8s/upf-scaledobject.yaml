@@ -1,0 +1,32 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: upf-throughput-scaler
+  namespace: free5gc
+spec:
+  scaleTargetRef:
+    name: free5gc-free5gc-upf-upf    # update if your UPF deployment name differs
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://kube-prom-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+      metricName: upf_gtpu_rx_bytes_per_second
+      threshold: "500000"           # 500 KB/s per replica
+      query: sum(upf_gtpu_rx_bytes_per_second)
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          stabilizationWindowSeconds: 15
+          policies:
+          - type: Pods
+            value: 3
+            periodSeconds: 10
+        scaleUp:
+          stabilizationWindowSeconds: 5
+          policies:
+          - type: Pods
+            value: 3
+            periodSeconds: 10

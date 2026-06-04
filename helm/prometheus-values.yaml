@@ -1,0 +1,36 @@
+prometheus:
+  prometheusSpec:
+    retention: 24h
+    resources:
+      requests: {memory: 400Mi, cpu: 200m}
+      limits:   {memory: 800Mi}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+
+grafana:
+  adminPassword: free5gc
+  resources:
+    requests: {memory: 128Mi, cpu: 100m}
+    limits:   {memory: 256Mi}
+  persistence:
+    enabled: false
+  service:
+    type: NodePort
+    nodePort: 30300
+
+alertmanager:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
+prometheusOperator:
+  resources:
+    requests: {memory: 128Mi, cpu: 100m}

@@ -1,0 +1,47 @@
+{
+  "title": "UPF Autoscaling — free5GC",
+  "uid": "upf-autoscale",
+  "time": {"from": "now-15m", "to": "now"},
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "title": "UPF GTP-U Throughput (bytes/s)",
+      "type": "graph",
+      "targets": [
+        {"expr": "sum(upf_gtpu_rx_bytes_per_second)", "legendFormat": "UL (UE→Internet)"},
+        {"expr": "sum(upf_gtpu_tx_bytes_per_second)", "legendFormat": "DL (Internet→UE)"}
+      ],
+      "yaxes": [{"format": "Bps", "label": "Throughput"}]
+    },
+    {
+      "id": 2, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "title": "UPF Replica Count (KEDA)",
+      "type": "graph",
+      "targets": [
+        {"expr": "kube_deployment_status_replicas{deployment=\"free5gc-free5gc-upf-upf\", namespace=\"free5gc\"}", "legendFormat": "ready replicas"},
+        {"expr": "kube_deployment_spec_replicas{deployment=\"free5gc-free5gc-upf-upf\", namespace=\"free5gc\"}", "legendFormat": "desired replicas"}
+      ],
+      "yaxes": [{"format": "short", "min": 0, "max": 4, "label": "Replicas"}]
+    },
+    {
+      "id": 3, "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "title": "UPF CPU Usage (%)",
+      "type": "graph",
+      "targets": [
+        {"expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"free5gc\",pod=~\"free5gc-free5gc-upf-upf.*\",container=\"upf\"}[1m])) * 100", "legendFormat": "UPF CPU %"}
+      ],
+      "yaxes": [{"format": "percent", "label": "CPU", "min": 0}]
+    },
+    {
+      "id": 4, "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "title": "GTP-U Total Bytes Transferred",
+      "type": "graph",
+      "targets": [
+        {"expr": "sum(upf_gtpu_rx_bytes_total)", "legendFormat": "Total UL bytes"},
+        {"expr": "sum(upf_gtpu_tx_bytes_total)", "legendFormat": "Total DL bytes"}
+      ],
+      "yaxes": [{"format": "bytes", "label": "Bytes"}]
+    }
+  ]
+}
