@@ -22,6 +22,43 @@ UE_POD=$(kubectl get pod -n $NS -l component=ue -o jsonpath='{.items[0].metadata
 UPF_POD=$(kubectl get pod -n $NS -l nf=upf -o jsonpath='{.items[0].metadata.name}' | head -1)
 IPERF_IP=$(kubectl get pod -n $NS iperf-server -o jsonpath='{.status.podIP}')
 
+# ── Auto-heal: ensure iperf3 installed and GTP sessions alive ─
+ensure_iperf3() {
+    local pod=$1
+    if ! kubectl exec -n $NS "$pod" -- which iperf3 &>/dev/null; then
+        echo -e "${YELLOW}  iperf3 missing — installing...${NC}"
+        for deb in libiperf0_3.1.3-1_amd64.deb iperf3_3.1.3-1_amd64.deb; do
+            [[ ! -f /tmp/$deb ]] && wget -q -P /tmp \
+                "http://archive.ubuntu.com/ubuntu/pool/universe/i/iperf3/$deb"
+            kubectl cp /tmp/$deb $NS/$pod:/tmp/$deb
+        done
+        kubectl exec -n $NS "$pod" -- \
+            dpkg -i /tmp/libiperf0_3.1.3-1_amd64.deb /tmp/iperf3_3.1.3-1_amd64.deb &>/dev/null
+        echo -e "${GREEN}  iperf3 ready${NC}"
+    fi
+}
+
+heal_gtp() {
+    local gtp_ok
+    gtp_ok=$(kubectl exec -n $NS "$UE_POD" -- \
+        ping -I uesimtun0 -c 3 -W 3 8.8.8.8 2>/dev/null | awk '/received/{print $4}')
+    if [[ "${gtp_ok:-0}" -eq 0 ]]; then
+        echo -e "${YELLOW}  GTP sessions stale — restarting SMF + UE...${NC}"
+        kubectl rollout restart -n $NS deployment/free5gc-free5gc-smf-smf deployment/ueransim-ue &>/dev/null
+        kubectl wait --for=condition=ready pod -n $NS -l nf=smf --timeout=60s &>/dev/null
+        kubectl wait --for=condition=ready pod -n $NS -l component=ue --timeout=60s &>/dev/null
+        UE_POD=$(kubectl get pod -n $NS -l component=ue -o jsonpath='{.items[0].metadata.name}')
+        until kubectl exec -n $NS "$UE_POD" -- ip addr show uesimtun0 2>/dev/null | grep -q "inet 10.1"; do sleep 2; done
+        echo -e "${GREEN}  GTP sessions restored${NC}"
+    fi
+}
+
+heal_gtp
+ensure_iperf3 "$UE_POD"
+# Refresh pod names after potential restart
+UE_POD=$(kubectl get pod -n $NS -l component=ue -o jsonpath='{.items[0].metadata.name}')
+UPF_POD=$(kubectl get pod -n $NS -l nf=upf -o jsonpath='{.items[0].metadata.name}' | head -1)
+
 # Collect UE IPs
 UE_IPS=()
 for i in $(seq 0 9); do
@@ -139,9 +176,10 @@ start_traffic 2 5
 for t in 5 10 15 20 25 30 35 40; do sleep 5; status_line $t "2 UEs @ 5M"; done
 echo ""
 
-# ── Phase 3: 3 UEs × 5 Mbit/s ≈ 1950 KB/s ───────────────
+# ── Phase 3: 4 UEs × 5 Mbit/s ───────────────────────────
 echo -e "${BOLD}▶ Phase 3  │  4 UEs × 5 Mbit/s  →  ~2600 KB/s${NC}"
 echo -e "  expected: scale to 3 replicas"
+# Start new traffic BEFORE stopping old — avoids metric gap and spurious scale-down
 start_traffic 4 5
 for t in 5 10 15 20 25 30 35 40; do sleep 5; status_line $t "4 UEs @ 5M"; done
 echo ""
